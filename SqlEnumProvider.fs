@@ -50,13 +50,18 @@ type public SqlCommandProvider(config : TypeProviderConfig) as this =
         let schema = reader.GetSchemaTable()
         let valueType = Type.GetType(typeName = string schema.Rows.[1].["DataType"])
 
-        providedEnumType.AddMembers [
-            while reader.Read() do
-                let name = reader.GetString( 0)
-                let value = reader.[1]
-                let property = ProvidedProperty( name, valueType, IsStatic = true)
-                property.GetterCode <- fun _ -> Expr.Value( value, valueType)
-                yield property
-        ]
+        let nameValuePairs = [ while reader.Read() do yield reader.GetString( 0), reader.[1] ]
+
+        for name, value in nameValuePairs do
+            let property = ProvidedProperty( name, valueType, IsStatic = true, GetterCode = fun _ -> Expr.Value( value, valueType))
+            providedEnumType.AddMember( property)
+    
+        let getNames = ProvidedMethod( "GetNames", [], typeof<string[]>, IsStaticMethod = true)
+        getNames.InvokeCode <- fun _ -> Expr.NewArray( typeof<string>, [ for name, _ in nameValuePairs -> Expr.Value name ])
+        providedEnumType.AddMember getNames
+
+        let getValues = ProvidedMethod( "GetValues", [], valueType.MakeArrayType(), IsStaticMethod = true)
+        getValues.InvokeCode <- fun _ -> Expr.NewArray( valueType, [ for _, value in nameValuePairs -> Expr.Value( value, valueType) ])
+        providedEnumType.AddMember getValues
 
         providedEnumType

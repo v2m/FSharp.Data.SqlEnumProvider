@@ -57,6 +57,7 @@
     <Compile Include="ProvidedTypes-head.fs" />
     <Compile Include="SqlEnumProvider.fs" />
     <None Include="ScratchPad.fsx" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
