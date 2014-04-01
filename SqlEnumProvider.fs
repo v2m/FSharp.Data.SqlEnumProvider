@@ -18,7 +18,7 @@ open Samples.FSharp.ProvidedTypes
 do()
 
 [<TypeProvider>]
-type public SqlCommandProvider(config : TypeProviderConfig) as this = 
+type public SqlEnumProvider(config : TypeProviderConfig) as this = 
     inherit TypeProviderForNamespaces()
 
     let nameSpace = this.GetType().Namespace
@@ -95,7 +95,7 @@ type public SqlCommandProvider(config : TypeProviderConfig) as this =
                                 
                 tupleType, getValue
 
-        let nameAndValuePairs = 
+        let names, values = 
             [ 
                 while reader.Read() do 
                     let rowValues = Array.zeroCreate reader.FieldCount
@@ -105,18 +105,50 @@ type public SqlCommandProvider(config : TypeProviderConfig) as this =
                     let tailAsValue = Array.sub rowValues 1 (count - 1) |> getValue
                     yield label, tailAsValue
             ] 
+            |> List.unzip
 
-        for name, value in nameAndValuePairs do
+        let namesStorage = ProvidedField( "Names", typeof<string[]>)
+        namesStorage.SetFieldAttributes (FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+        providedEnumType.AddMember namesStorage
+
+        let valuesStorage = ProvidedField( "Values", valueType.MakeArrayType())
+        valuesStorage.SetFieldAttributes (FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+        providedEnumType.AddMember valuesStorage 
+
+        let typeInit = ProvidedConstructor([], IsTypeInitializer = true)
+        typeInit.InvokeCode <- fun _ -> 
+            Expr.Sequential(
+                Expr.FieldSet(namesStorage, Expr.NewArray( typeof<string>, names |> List.map Expr.Value)),
+                Expr.FieldSet(valuesStorage, Expr.NewArray( valueType, values))
+            )
+
+        providedEnumType.AddMember typeInit 
+
+        (names, values) ||> List.iter2 (fun name value -> 
             let property = ProvidedProperty( name, valueType, IsStatic = true, GetterCode = fun _ -> value)
             providedEnumType.AddMember( property)
+        )
     
-        let getNames = ProvidedMethod( "GetNames", [], typeof<string[]>, IsStaticMethod = true)
-        getNames.InvokeCode <- fun _ -> Expr.NewArray( typeof<string>, nameAndValuePairs |> List.map (fst >> Expr.Value))
-        providedEnumType.AddMember getNames
+        let tryParse = ProvidedMethod( "TryParse", [ ProvidedParameter("value", typeof<string>) ], typedefof<_ option>.MakeGenericType( valueType), IsStaticMethod = true)
+        tryParse.InvokeCode <- 
+            let m = this.GetType().GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
+            this.GetType()
+                .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
+                .MakeGenericMethod( valueType)
+                .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |])
+                |> unbox
 
-        let getValues = ProvidedMethod( "GetValues", [], valueType.MakeArrayType(), IsStaticMethod = true)
-        getValues.InvokeCode <- fun _ -> Expr.NewArray( valueType, nameAndValuePairs |> List.map snd)
-        
-        providedEnumType.AddMember getValues
+        providedEnumType.AddMember tryParse
 
         providedEnumType
+
+    static member internal GetTryParseImpl<'Value>( names, values) = 
+        fun (args: _ list) ->
+            <@@
+                %%names
+                |> Array.tryFindIndex (fun (x: string) -> x = %%args.[0]) 
+                |> Option.map (fun index -> Array.get<'Value> %%values index)
+            @@>
+
+
+

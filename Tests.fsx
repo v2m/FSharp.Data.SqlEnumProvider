@@ -11,8 +11,8 @@ let adventureWorks = @"Data Source=(LocalDb)\v11.0;Initial Catalog=AdventureWork
 //by convention: first column is Name, second is Value
 type ShipMethod = SqlEnumProvider<"SELECT Name, ShipMethodID FROM Purchasing.ShipMethod ORDER BY ShipMethodID", adventureWorks, "System.Data.SqlClient">
 
-ShipMethod.GetNames()
-ShipMethod.GetValues()
+ShipMethod.Names
+ShipMethod.Values
 
 ShipMethod.``CARGO TRANSPORT 5``
 ShipMethod.``OVERNIGHT J-FAST``
@@ -32,3 +32,5 @@ query {
     count
 } 
 
+ShipMethod.TryParse("CARGO TRANSPORT 5")
+ShipMethod.TryParse("Unknown")
