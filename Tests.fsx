@@ -1,5 +1,5 @@
 
-#r @"bin\Debug\SqlEnumProvider.dll"
+#r @"bin\Debug\FSharp.Data.SqlEnumProvider.dll"
 #r @"packages\FSharp.Data.SqlClient.1.2.6\lib\net40\FSharp.Data.SqlClient.dll"
 
 open FSharp.Data
@@ -9,12 +9,13 @@ open System
 let adventureWorks = @"Data Source=(LocalDb)\v11.0;Initial Catalog=AdventureWorks2012;Integrated Security=True"
 
 //by convention: first column is Name, second is Value
-type ShipMethod = SqlEnum<"SELECT Name, ShipMethodID FROM Purchasing.ShipMethod", adventureWorks>
+type ShipMethod = SqlEnumProvider<"SELECT Name, ShipMethodID FROM Purchasing.ShipMethod ORDER BY ShipMethodID", adventureWorks, "System.Data.SqlClient">
+
+ShipMethod.GetNames()
+ShipMethod.GetValues()
 
 ShipMethod.``CARGO TRANSPORT 5``
 ShipMethod.``OVERNIGHT J-FAST``
-ShipMethod.GetNames()
-ShipMethod.GetValues()
 
 //Now combining 2 F# type providers: SqlEnum and SqlCommandProvider
 type OrderHeader = SqlCommandProvider<"
