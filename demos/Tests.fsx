@@ -32,5 +32,7 @@ query {
     count
 } 
 
-ShipMethod.TryParse("CARGO TRANSPORT 5")
-ShipMethod.TryParse("Unknown")
+ShipMethod.TryParse("CARGO TRANSPORT 5") // Some 5
+ShipMethod.TryParse("cargo transport 5") // None
+ShipMethod.TryParse("cargo transport 5", ignoreCase = true) // Some 5
+ShipMethod.TryParse("Unknown") //None

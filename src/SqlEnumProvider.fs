@@ -26,7 +26,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
     let providerType = ProvidedTypeDefinition( assembly, nameSpace, "SqlEnumProvider", Some typeof<obj>, HideObjectMethods = true, IsErased = false)
     
     let tempAssembly = ProvidedAssembly( Path.ChangeExtension(Path.GetTempFileName(), ".dll"))
-    let cache = ConcurrentDictionary()
+    let cache = ConcurrentDictionary<string, ProvidedTypeDefinition>()
 
     do 
         tempAssembly.AddTypes  <| [ providerType ]
@@ -39,12 +39,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             ],             
             instantiationFunction = (fun typeName args ->   
                 let key = args |> Array.map string |> String.concat ""
-                match cache.TryGetValue( args) with
-                | false, _ ->
-                    let v = this.CreateType typeName args
-                    cache.[args] <- v
-                    v
-                | true, v -> v
+                cache.GetOrAdd( key, fun _ -> this.CreateType(typeName, args))
             )        
         )
 
@@ -57,7 +52,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
         this.AddNamespace( nameSpace, [ providerType ])
     
-    member internal this.CreateType typeName parameters = 
+    member internal this.CreateType( typeName, parameters: obj[]) = 
         let query : string = unbox parameters.[0] 
         let connectionString : string = unbox parameters.[1] 
         let adoProviderName : string = unbox parameters.[2] 
@@ -140,7 +135,17 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             providedEnumType.AddMember( property)
         )
     
-        let tryParse = ProvidedMethod( "TryParse", [ ProvidedParameter("value", typeof<string>) ], typedefof<_ option>.MakeGenericType( valueType), IsStaticMethod = true)
+        let tryParse = 
+            ProvidedMethod(
+                methodName = "TryParse", 
+                parameters = [ 
+                    ProvidedParameter("value", typeof<string>) 
+                    ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
+                ], 
+                returnType = typedefof<_ option>.MakeGenericType( valueType), 
+                IsStaticMethod = true
+            )
+
         tryParse.InvokeCode <- 
             let m = this.GetType().GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
             this.GetType()
@@ -156,8 +161,13 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
     static member internal GetTryParseImpl<'Value>( names, values) = 
         fun (args: _ list) ->
             <@@
+                let comparer = 
+                    if %%args.[1]
+                    then StringComparer.InvariantCultureIgnoreCase
+                    else StringComparer.InvariantCulture
+
                 %%names
-                |> Array.tryFindIndex (fun (x: string) -> x = %%args.[0]) 
+                |> Array.tryFindIndex (fun (x: string) -> comparer.Equals(x, %%args.[0])) 
                 |> Option.map (fun index -> Array.get<'Value> %%values index)
             @@>
 
