@@ -9,7 +9,7 @@ open System
 let adventureWorks = @"Data Source=(LocalDb)\v11.0;Initial Catalog=AdventureWorks2012;Integrated Security=True"
 
 //by convention: first column is Name, second is Value
-type ShipMethod = SqlEnumProvider<"SELECT Name, ShipMethodID FROM Purchasing.ShipMethod ORDER BY ShipMethodID", adventureWorks, "System.Data.SqlClient">
+type ShipMethod = SqlEnumProvider<"SELECT Name, ShipMethodID FROM Purchasing.ShipMethod ORDER BY ShipMethodID", adventureWorks>
 
 ShipMethod.Names
 ShipMethod.Values
