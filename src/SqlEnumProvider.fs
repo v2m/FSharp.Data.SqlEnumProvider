@@ -38,8 +38,8 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 //ProvidedStaticParameter("CLIEnum", typeof<bool>, false) 
             ],             
             instantiationFunction = (fun typeName args ->   
-                let key = unbox args.[0], unbox args.[1], unbox args.[2]  
-                cache.GetOrAdd( key, fun (query, connectionString, adoProviderName) -> this.CreateType( typeName, query, connectionString, adoProviderName))
+                let key = typeName, unbox args.[0], unbox args.[1], unbox args.[2]  
+                cache.GetOrAdd( key, this.CreateRootType)
             )        
         )
 
@@ -52,7 +52,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
         this.AddNamespace( nameSpace, [ providerType ])
     
-    member internal this.CreateType( typeName, query: string, connectionString: string, adoProviderName: string) = 
+    member internal this.CreateRootType( typeName, query: string, connectionString: string, adoProviderName: string) = 
 
         let providedEnumType = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, HideObjectMethods = true, IsErased = false)
         tempAssembly.AddTypes <| [ providedEnumType ]
