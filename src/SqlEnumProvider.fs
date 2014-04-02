@@ -26,7 +26,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
     let providerType = ProvidedTypeDefinition( assembly, nameSpace, "SqlEnumProvider", Some typeof<obj>, HideObjectMethods = true, IsErased = false)
     
     let tempAssembly = ProvidedAssembly( Path.ChangeExtension(Path.GetTempFileName(), ".dll"))
-    let cache = ConcurrentDictionary<string, ProvidedTypeDefinition>()
+    let cache = ConcurrentDictionary<_, ProvidedTypeDefinition>()
 
     do 
         tempAssembly.AddTypes  <| [ providerType ]
@@ -35,11 +35,11 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 ProvidedStaticParameter("Query", typeof<string>) 
                 ProvidedStaticParameter("ConnectionString", typeof<string>) 
                 ProvidedStaticParameter("Provider", typeof<string>, "System.Data.SqlClient") 
-                //ProvidedStaticParameter("CLITypes", typeof<bool>, false) 
+                //ProvidedStaticParameter("CLIEnum", typeof<bool>, false) 
             ],             
             instantiationFunction = (fun typeName args ->   
-                let key = args |> Array.map string |> String.concat ""
-                cache.GetOrAdd( key, fun _ -> this.CreateType(typeName, args))
+                let key = unbox args.[0], unbox args.[1], unbox args.[2]  
+                cache.GetOrAdd( key, fun (query, connectionString, adoProviderName) -> this.CreateType( typeName, query, connectionString, adoProviderName))
             )        
         )
 
@@ -52,11 +52,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
         this.AddNamespace( nameSpace, [ providerType ])
     
-    member internal this.CreateType( typeName, parameters: obj[]) = 
-        let query : string = unbox parameters.[0] 
-        let connectionString : string = unbox parameters.[1] 
-        let adoProviderName : string = unbox parameters.[2] 
-        //let cliTypes : bool = unbox unbox parameters.[3] 
+    member internal this.CreateType( typeName, query: string, connectionString: string, adoProviderName: string) = 
 
         let providedEnumType = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, HideObjectMethods = true, IsErased = false)
         tempAssembly.AddTypes <| [ providedEnumType ]
