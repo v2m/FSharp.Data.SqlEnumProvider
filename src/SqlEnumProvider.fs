@@ -108,11 +108,11 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             |> List.unzip
 
         let namesStorage = ProvidedField( "Names", typeof<string[]>)
-        namesStorage.SetFieldAttributes (FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+        namesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
         providedEnumType.AddMember namesStorage
 
         let valuesStorage = ProvidedField( "Values", valueType.MakeArrayType())
-        valuesStorage.SetFieldAttributes (FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+        valuesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
         providedEnumType.AddMember valuesStorage 
 
         let typeInit = ProvidedConstructor([], IsTypeInitializer = true)

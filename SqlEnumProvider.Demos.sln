@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{90641A51-D64D-496E-9463-5F856FF14A97}"
+	ProjectSection(SolutionItems) = preProject
+		demos\Tests.fsx = demos\Tests.fsx
+	EndProjectSection
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FSharp.Proxy", "demos\FSharp.Proxy\FSharp.Proxy.fsproj", "{E0AF59DC-BA64-4656-ACB6-F69C5941214E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharp.Client", "demos\CSharp.Client\CSharp.Client.csproj", "{0996075F-01B8-4050-A1F0-D868BAA76023}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E0AF59DC-BA64-4656-ACB6-F69C5941214E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0AF59DC-BA64-4656-ACB6-F69C5941214E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0AF59DC-BA64-4656-ACB6-F69C5941214E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0AF59DC-BA64-4656-ACB6-F69C5941214E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0996075F-01B8-4050-A1F0-D868BAA76023}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0996075F-01B8-4050-A1F0-D868BAA76023}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0996075F-01B8-4050-A1F0-D868BAA76023}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0996075F-01B8-4050-A1F0-D868BAA76023}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
