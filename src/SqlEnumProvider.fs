@@ -35,8 +35,10 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 ProvidedStaticParameter("Query", typeof<string>) 
                 ProvidedStaticParameter("ConnectionString", typeof<string>) 
                 ProvidedStaticParameter("Provider", typeof<string>, "System.Data.SqlClient") 
+                //ProvidedStaticParameter("CLITypes", typeof<bool>, false) 
             ],             
             instantiationFunction = (fun typeName args ->   
+                let key = args |> Array.map string |> String.concat ""
                 match cache.TryGetValue( args) with
                 | false, _ ->
                     let v = this.CreateType typeName args
@@ -59,6 +61,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         let query : string = unbox parameters.[0] 
         let connectionString : string = unbox parameters.[1] 
         let adoProviderName : string = unbox parameters.[2] 
+        //let cliTypes : bool = unbox unbox parameters.[3] 
 
         let providedEnumType = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, HideObjectMethods = true, IsErased = false)
         tempAssembly.AddTypes <| [ providedEnumType ]
@@ -78,9 +81,17 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         if reader.FieldCount < 2 then failwith "At least two columns expected in result rowset. Received %i columns." reader.FieldCount
         let schema = reader.GetSchemaTable()
         let valueType, getValue = 
+            
+            let getValueType(row: DataRow) = 
+                let t = Type.GetType( typeName = string row.["DataType"])
+                if not( t.IsValueType || t = typeof<string>)
+                then 
+                    failwithf "Invalid type %s of column %O for value part. Only .NET value types and strings supported as value." t.FullName row.["ColumnName"]
+                t
+
             if schema.Rows.Count = 2
             then
-                let valueType = Type.GetType( typeName = string schema.Rows.[1].["DataType"])
+                let valueType = getValueType schema.Rows.[1]
                 let getValue = fun(values: obj[]) -> Expr.Value(Array.get values 0, valueType)
                 valueType, getValue
             else
@@ -88,8 +99,8 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                     schema.Rows
                     |> Seq.cast<DataRow>
                     |> Seq.skip 1
-                    |> Seq.map ( fun row -> Type.GetType( typeName = string row.["DataType"]))
-
+                    |> Seq.map getValueType
+                
                 let tupleType = tupleItemTypes |> Seq.toArray |> FSharpType.MakeTupleType
                 let getValue = fun values -> (values, tupleItemTypes) ||> Seq.zip |> Seq.map Expr.Value |> Seq.toList |> Expr.NewTuple
                                 
