@@ -9,7 +9,7 @@ open System
 let adventureWorks = @"Data Source=(LocalDb)\v11.0;Initial Catalog=AdventureWorks2012;Integrated Security=True"
 
 //by convention: first column is Name, second is Value
-type ShipMethod = SqlEnumProvider<"SELECT Name, ShipMethodID FROM Purchasing.ShipMethod ORDER BY ShipMethodID", adventureWorks>
+type ShipMethod = SqlEnumProvider<"SELECT Name, ShipMethodID, ModifiedDate FROM Purchasing.ShipMethod ORDER BY ShipMethodID", adventureWorks>
 
 ShipMethod.Names
 ShipMethod.Values
@@ -28,7 +28,7 @@ let cmd = OrderHeader()
 //# of overnight orders after Jan 1, 2008
 query {
     for x in cmd.Execute( shippedLaterThan = DateTime( 2008, 1, 1)) do
-    where (x.ShipMethodID = ShipMethod.``OVERNIGHT J-FAST``)
+    where (x.ShipMethodID = fst ShipMethod.``OVERNIGHT J-FAST``)
     count
 } 
 
