@@ -32,6 +32,8 @@ module internal Misc =
     let ParseInt32Method = LanguagePrimitivesType.GetMethod "ParseInt32"
     let DecimalConstructor = typeof<decimal>.GetConstructor([| typeof<int>; typeof<int>; typeof<int>; typeof<bool>; typeof<byte> |])
     let DateTimeConstructor = typeof<DateTime>.GetConstructor([| typeof<int64>; typeof<DateTimeKind> |])
+    let DateTimeOffsetConstructor = typeof<DateTimeOffset>.GetConstructor([| typeof<int64>; typeof<TimeSpan> |])
+    let TimeSpanConstructor = typeof<TimeSpan>.GetConstructor([|typeof<int64>|])
     let isEmpty s = s = ExpectedStackState.Empty
     let isAddress s = s = ExpectedStackState.Address
 
@@ -1859,6 +1861,11 @@ type AssemblyGenerator(assemblyFileName) =
                                 ilg.Emit(OpCodes.Ldc_I8, x.Ticks)
                                 ilg.Emit(OpCodes.Ldc_I4, int x.Kind)
                                 ilg.Emit(OpCodes.Newobj, Misc.DateTimeConstructor)
+                            | :? DateTimeOffset as x ->
+                                ilg.Emit(OpCodes.Ldc_I8, x.Ticks)
+                                ilg.Emit(OpCodes.Ldc_I8, x.Offset.Ticks)
+                                ilg.Emit(OpCodes.Newobj, Misc.TimeSpanConstructor)
+                                ilg.Emit(OpCodes.Newobj, Misc.DateTimeOffsetConstructor)
                             | null -> ilg.Emit(OpCodes.Ldnull)
                             | _ -> failwithf "unknown constant '%A' in generated method" v
                         if isEmpty expectedState then ()
