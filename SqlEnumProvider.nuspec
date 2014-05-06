@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>FSharp.Data.SqlEnumProvider</id>
-    <version>0.1.0.0-aplha</version>
+    <version>0.2.0-aplha</version>
     <authors>Dmitry Morozov</authors>
     <owners>Dmitry Morozov</owners>
     <licenseUrl>http://github.com/dmitry-a-morozov/FSharp.Data.SqlEnumProvider/blob/master/LICENSE.md</licenseUrl>
