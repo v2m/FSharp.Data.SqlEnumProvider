@@ -109,6 +109,10 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             ] 
             |> List.unzip
 
+        names 
+        |> Seq.groupBy id 
+        |> Seq.iter (fun (key, xs) -> if Seq.length xs > 1 then failwithf "Non-unique label %s." key)
+
         let namesStorage = ProvidedField( "Names", typeof<string[]>)
         namesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
         providedEnumType.AddMember namesStorage
