@@ -7,6 +7,7 @@ open System.Data.Common
 open System
 open System.IO
 open System.Collections.Concurrent
+open System.Configuration
 
 open Microsoft.FSharp.Core.CompilerServices
 open Microsoft.FSharp.Quotations
@@ -33,12 +34,13 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         providerType.DefineStaticParameters(
             parameters = [ 
                 ProvidedStaticParameter("Query", typeof<string>) 
-                ProvidedStaticParameter("ConnectionString", typeof<string>) 
+                ProvidedStaticParameter("ConnectionStringOrName", typeof<string>) 
                 ProvidedStaticParameter("Provider", typeof<string>, "System.Data.SqlClient") 
+                ProvidedStaticParameter("ConfigFile", typeof<string>, "") 
                 //ProvidedStaticParameter("CLIEnum", typeof<bool>, false) 
             ],             
             instantiationFunction = (fun typeName args ->   
-                let key = typeName, unbox args.[0], unbox args.[1], unbox args.[2]  
+                let key = typeName, unbox args.[0], unbox args.[1], unbox args.[2], unbox args.[3]
                 cache.GetOrAdd( key, this.CreateRootType)
             )        
         )
@@ -52,12 +54,14 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
         this.AddNamespace( nameSpace, [ providerType ])
     
-    member internal this.CreateRootType( typeName, query: string, connectionString: string, adoProviderName: string) = 
+    member internal this.CreateRootType( typeName, query: string, connectionStringOrName: string, adoProviderName: string, configFile) = 
 
         let providedEnumType = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, HideObjectMethods = true, IsErased = false)
         tempAssembly.AddTypes <| [ providedEnumType ]
         
         let adoObjectsFactory = DbProviderFactories.GetFactory( adoProviderName)
+
+        let connectionString = SqlEnumProvider.ParseConnectionStringName( connectionStringOrName, config.ResolutionFolder, configFile)
 
         use conn = adoObjectsFactory.CreateConnection() 
         conn.ConnectionString <- connectionString
@@ -171,5 +175,33 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 |> Option.map (fun index -> Array.get<'Value> %%values index)
             @@>
 
+    static member internal ParseConnectionStringName(s: string, resolutionFolder, configFile) =
+        match s.Trim().Split([|'='|], 2, StringSplitOptions.RemoveEmptyEntries) with
+            | [| "" |] -> invalidArg "ConnectionStringOrName" "Value is empty!"
+            | [| prefix; tail |] when prefix.Trim().ToLower() = "name" -> 
+                SqlEnumProvider.ReadConnectionStringFromConfigFileByName( tail.Trim(), resolutionFolder, configFile)
+            | _ -> s
 
+    static member internal ReadConnectionStringFromConfigFileByName(name: string, resolutionFolder, fileName) =
 
+        let configFilename = 
+            if fileName <> "" 
+            then
+                let path = Path.Combine(resolutionFolder, fileName)
+                if not <| File.Exists path 
+                then raise <| FileNotFoundException( sprintf "Could not find config file '%s'." path)
+                else path
+            else
+                let appConfig = Path.Combine(resolutionFolder, "app.config")
+                let webConfig = Path.Combine(resolutionFolder, "web.config")
+
+                if File.Exists appConfig then appConfig
+                elif File.Exists webConfig then webConfig
+                else failwithf "Cannot find either app.config or web.config."
+        
+        let map = ExeConfigurationFileMap()
+        map.ExeConfigFilename <- configFilename
+        let configSection = ConfigurationManager.OpenMappedExeConfiguration(map, ConfigurationUserLevel.None).ConnectionStrings.ConnectionStrings
+        match configSection, lazy configSection.[name] with
+        | null, _ | _, Lazy null -> failwithf "Cannot find name %s in <connectionStrings> section of %s file." name configFilename
+        | _, Lazy x -> x.ConnectionString
