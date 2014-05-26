@@ -1,6 +1,6 @@
 
 #r @"..\src\bin\Debug\FSharp.Data.SqlEnumProvider.dll"
-#r @"..\packages\FSharp.Data.SqlClient.1.2.21\lib\net40\FSharp.Data.SqlClient.dll"
+#r @"..\packages\FSharp.Data.SqlClient.1.2.22\lib\net40\FSharp.Data.SqlClient.dll"
 
 open FSharp.Data
 open System
