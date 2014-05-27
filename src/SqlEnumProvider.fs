@@ -18,6 +18,8 @@ open Samples.FSharp.ProvidedTypes
 [<assembly:TypeProviderAssembly()>]
 do()
 
+type ApiStyle = | Default = 0 | CLI = 1 | Enum = 2 
+
 [<TypeProvider>]
 type public SqlEnumProvider(config : TypeProviderConfig) as this = 
     inherit TypeProviderForNamespaces()
@@ -37,7 +39,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 ProvidedStaticParameter("ConnectionStringOrName", typeof<string>) 
                 ProvidedStaticParameter("Provider", typeof<string>, "System.Data.SqlClient") 
                 ProvidedStaticParameter("ConfigFile", typeof<string>, "") 
-                //ProvidedStaticParameter("CLIEnum", typeof<bool>, false) 
+                ProvidedStaticParameter("ApiStyle", typeof<ApiStyle>, ApiStyle.Default) 
             ],             
             instantiationFunction = (fun typeName args ->   
                 let key = typeName, unbox args.[0], unbox args.[1], unbox args.[2], unbox args.[3]
@@ -138,33 +140,66 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             let property = ProvidedProperty( name, valueType, IsStatic = true, GetterCode = fun _ -> value)
             providedEnumType.AddMember( property)
         )
-    
-        let tryParse = 
-            ProvidedMethod(
-                methodName = "TryParse", 
-                parameters = [ 
-                    ProvidedParameter("value", typeof<string>) 
-                    ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
-                ], 
-                returnType = typedefof<_ option>.MakeGenericType( valueType), 
-                IsStaticMethod = true
-            )
 
-        tryParse.InvokeCode <- 
-            let m = this.GetType().GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
-            this.GetType()
-                .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
-                .MakeGenericMethod( valueType)
-                .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |])
-                |> unbox
+        do    
+            let tryParse = 
+                ProvidedMethod(
+                    methodName = "TryParse", 
+                    parameters = [ 
+                        ProvidedParameter("value", typeof<string>) 
+                        ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
+                    ], 
+                    returnType = typedefof<_ option>.MakeGenericType( valueType), 
+                    IsStaticMethod = true
+                )
 
-        providedEnumType.AddMember tryParse
+            tryParse.InvokeCode <- 
+                this.GetType()
+                    .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
+                    .MakeGenericMethod( valueType)
+                    .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |])
+                    |> unbox
+
+            providedEnumType.AddMember tryParse
+
+        do 
+            let parseImpl =
+                this.GetType()
+                    .GetMethod( "GetParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
+                    .MakeGenericMethod( valueType)
+                    .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); providedEnumType.FullName |])
+                    |> unbox
+
+            [
+                ProvidedMethod(
+                    methodName = "Parse", 
+                    parameters = [ 
+                        ProvidedParameter("value", typeof<string>) 
+                        ProvidedParameter("ignoreCase", typeof<bool>) 
+                    ], 
+                    returnType = valueType, 
+                    IsStaticMethod = true, 
+                    InvokeCode = parseImpl
+                )
+
+                ProvidedMethod(
+                    methodName = "Parse", 
+                    parameters = [ ProvidedParameter("value", typeof<string>) ], 
+                    returnType = valueType, 
+                    IsStaticMethod = true, 
+                    InvokeCode = fun args -> parseImpl (args @ [ Expr.Value( false) ])
+                )
+
+            ]
+            |> List.iter providedEnumType.AddMember
 
         providedEnumType
 
     static member internal GetTryParseImpl<'Value>( names, values) = 
         fun (args: _ list) ->
             <@@
+                if String.IsNullOrEmpty (%%args.[0]) then nullArg "value"
+
                 let comparer = 
                     if %%args.[1]
                     then StringComparer.InvariantCultureIgnoreCase
@@ -173,6 +208,17 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 %%names
                 |> Array.tryFindIndex (fun (x: string) -> comparer.Equals(x, %%args.[0])) 
                 |> Option.map (fun index -> Array.get<'Value> %%values index)
+            @@>
+
+    static member internal GetParseImpl<'Value>( names, values, typeName) = 
+        fun (args: _ list) ->
+            let expr = (SqlEnumProvider.GetTryParseImpl<'Value> (names, values)) args
+            <@@
+                match %%expr with
+                | Some(x : 'Value) -> x
+                | None -> 
+                    let errMsg = sprintf @"Cannot convert value ""%s"" to type ""%s""" %%args.[0] typeName
+                    invalidArg "value" errMsg
             @@>
 
     static member internal ParseConnectionStringName(s: string, resolutionFolder, configFile) =

@@ -13,3 +13,10 @@ let tinyIntMapping() =
     Assert.Equal<string[]>([| "One"; "Two" |], TinyIntMapping.Names)
     Assert.Equal<byte[]>([| 1uy; 2uy |], TinyIntMapping.Values)
 
+[<Fact>]
+let parse() = 
+    Assert.Equal(TinyIntMapping.One, TinyIntMapping.Parse("one", ignoreCase = true))
+    Assert.Equal(TinyIntMapping.One, TinyIntMapping.Parse("One", ignoreCase = false))
+    Assert.Equal(TinyIntMapping.One, TinyIntMapping.Parse("One"))
+    Assert.Throws<ArgumentException>(Assert.ThrowsDelegateWithReturn(fun() -> box (TinyIntMapping.Parse("blah-blah")))) |> ignore
+    Assert.Throws<ArgumentException>(Assert.ThrowsDelegateWithReturn(fun() -> box (TinyIntMapping.Parse("one")))) |> ignore

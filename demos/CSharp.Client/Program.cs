@@ -10,5 +10,6 @@ class Program
     {
         Console.WriteLine("Names: {0}", String.Join(",", ShipMethod.Names));
         Console.WriteLine("Value: {0}", String.Join(",", ShipMethod.Values));
+        //Console.WriteLine("TryParse: {0}", String.Join(",", ShipMethod.TryParse("CARGO TRANSPORT 5", false)));
     }
 }
