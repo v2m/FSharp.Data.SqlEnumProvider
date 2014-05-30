@@ -18,7 +18,7 @@ open Samples.FSharp.ProvidedTypes
 [<assembly:TypeProviderAssembly()>]
 do()
 
-type ApiStyle = | Default = 0 | CLI = 1 | Enum = 2 
+type ApiStyle = | Default = 0 | ``C#`` = 1 | Enum = 2 
 
 [<TypeProvider>]
 type public SqlEnumProvider(config : TypeProviderConfig) as this = 
@@ -42,7 +42,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 ProvidedStaticParameter("ApiStyle", typeof<ApiStyle>, ApiStyle.Default) 
             ],             
             instantiationFunction = (fun typeName args ->   
-                let key = typeName, unbox args.[0], unbox args.[1], unbox args.[2], unbox args.[3]
+                let key = typeName, unbox args.[0], unbox args.[1], unbox args.[2], unbox args.[3], unbox args.[4]
                 cache.GetOrAdd( key, this.CreateRootType)
             )        
         )
@@ -56,7 +56,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
         this.AddNamespace( nameSpace, [ providerType ])
     
-    member internal this.CreateRootType( typeName, query: string, connectionStringOrName: string, adoProviderName: string, configFile) = 
+    member internal this.CreateRootType( typeName, query: string, connectionStringOrName: string, adoProviderName: string, configFile, apiStyle) = 
 
         let providedEnumType = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, HideObjectMethods = true, IsErased = false)
         tempAssembly.AddTypes <| [ providedEnumType ]
@@ -141,7 +141,8 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             providedEnumType.AddMember( property)
         )
 
-        do    
+        if apiStyle = ApiStyle.Default
+        then 
             let tryParse = 
                 ProvidedMethod(
                     methodName = "TryParse", 
@@ -161,6 +162,44 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                     |> unbox
 
             providedEnumType.AddMember tryParse
+
+        elif apiStyle = ApiStyle.``C#``
+        then 
+            let impl = this.GetType().GetMethod("GetTryParseImplForCSharp").MakeGenericMethod( valueType)
+            do 
+                let tryParseForCSharp = 
+                    ProvidedMethod(
+                        methodName = "TryParse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                            ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
+                        ], 
+                        returnType = typeof<bool>, 
+                        IsStaticMethod = true
+                    )
+
+                tryParseForCSharp.InvokeCode <- fun args ->
+                    Expr.Call(impl, [ Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); args.[0]; Expr.Value false; args.[1] ]) |> unbox
+
+                providedEnumType.AddMember tryParseForCSharp
+
+            do  //ignoreCase param
+                let tryParseForCSharp = 
+                    ProvidedMethod(
+                        methodName = "TryParse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                            ProvidedParameter("ignoreCase", typeof<bool>) 
+                            ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
+                        ], 
+                        returnType = typeof<bool>, 
+                        IsStaticMethod = true
+                    )
+
+                tryParseForCSharp.InvokeCode <- fun args ->
+                    Expr.Call(impl, [ Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); args.[0]; args.[1]; args.[2] ]) |> unbox
+
+                providedEnumType.AddMember tryParseForCSharp
 
         do 
             let parseImpl =
@@ -200,6 +239,21 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 |> Array.tryFindIndex (fun (x: string) -> comparer.Equals(x, %%args.[0])) 
                 |> Option.map (fun index -> Array.get<'Value> %%values index)
             @@>
+
+    static member public GetTryParseImplForCSharp<'Value>( names, values, value, ignoreCase, result: 'Value byref) = 
+        if String.IsNullOrEmpty value then nullArg "value"
+        let comparer = 
+            if ignoreCase
+            then StringComparer.InvariantCultureIgnoreCase
+            else StringComparer.InvariantCulture
+
+        match names |> Array.tryFindIndex (fun (x: string) -> comparer.Equals(x, value)) with
+        | Some index -> 
+            result <- Array.get values index
+            true
+        | None -> 
+            false
+
 
     static member internal GetParseImpl<'Value>( names, values, typeName) = 
         fun (args: _ list) ->

@@ -20,3 +20,18 @@ let parse() =
     Assert.Equal(TinyIntMapping.One, TinyIntMapping.Parse("One"))
     Assert.Throws<ArgumentException>(Assert.ThrowsDelegateWithReturn(fun() -> box (TinyIntMapping.Parse("blah-blah")))) |> ignore
     Assert.Throws<ArgumentException>(Assert.ThrowsDelegateWithReturn(fun() -> box (TinyIntMapping.Parse("one")))) |> ignore
+
+type IntMapping = SqlEnumProvider<"SELECT * FROM (VALUES(('One'), 1), ('Two', 2)) AS T(Tag, Value)", connectionString, ApiStyle = ApiStyle.``C#``>
+
+[<Fact>]
+let ``TryParse C#``() = 
+    let succ, result = IntMapping.TryParse("One")
+    Assert.True succ
+    Assert.Equal(IntMapping.One, result)
+//
+//    let result = ref 0uy
+//    let succ = IntMapping.TryParse("one", result)
+//    //let succ, result = TinyIntMapping2.TryParse("one", ignoreCase = true)
+//    Assert.True succ
+//    Assert.Equal(TinyIntMapping2.One, !result)
+//    ()
