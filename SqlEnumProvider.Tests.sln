@@ -1,12 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlEnumProvider.Tests", "tests\SqlEnumProvider.Tests.fsproj", "{2AA8E587-0B71-466F-93A6-77247B1D1DFD}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{666B6923-C188-4D9E-A666-43ED114B4C2A}"
 	ProjectSection(SolutionItems) = preProject
 		tests\Tests.fsx = tests\Tests.fsx
 	EndProjectSection
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlEnumProvider.Tests", "tests\SqlCommandProvider.Tests\SqlEnumProvider.Tests.fsproj", "{2AA8E587-0B71-466F-93A6-77247B1D1DFD}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlCommandProvider.GenTypes", "tests\SqlCommandProvider.GenTypes\SqlCommandProvider.GenTypes.fsproj", "{4193142A-17B7-4432-94B1-11CA65DD71C2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlCommandProvider.CSharp.Tests", "tests\SqlCommandProvider.CSharp.Tests\SqlCommandProvider.CSharp.Tests.csproj", "{599EFDC3-4B24-49BA-9C46-85EB87D82680}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,6 +22,14 @@ Global
 		{2AA8E587-0B71-466F-93A6-77247B1D1DFD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2AA8E587-0B71-466F-93A6-77247B1D1DFD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2AA8E587-0B71-466F-93A6-77247B1D1DFD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4193142A-17B7-4432-94B1-11CA65DD71C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4193142A-17B7-4432-94B1-11CA65DD71C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4193142A-17B7-4432-94B1-11CA65DD71C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4193142A-17B7-4432-94B1-11CA65DD71C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{599EFDC3-4B24-49BA-9C46-85EB87D82680}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{599EFDC3-4B24-49BA-9C46-85EB87D82680}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{599EFDC3-4B24-49BA-9C46-85EB87D82680}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{599EFDC3-4B24-49BA-9C46-85EB87D82680}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -28,10 +28,3 @@ let ``TryParse C#``() =
     let succ, result = IntMapping.TryParse("One")
     Assert.True succ
     Assert.Equal(IntMapping.One, result)
-//
-//    let result = ref 0uy
-//    let succ = IntMapping.TryParse("one", result)
-//    //let succ, result = TinyIntMapping2.TryParse("one", ignoreCase = true)
-//    Assert.True succ
-//    Assert.Equal(TinyIntMapping2.One, !result)
-//    ()
