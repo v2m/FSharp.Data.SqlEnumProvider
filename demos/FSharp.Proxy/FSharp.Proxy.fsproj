@@ -51,6 +51,7 @@
   <ItemGroup>
     <Compile Include="ShipMethod.fs" />
     <None Include="packages.config" />
+    <None Include="app.config" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Data.SqlClient">
@@ -58,8 +59,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="FSharp.Data.SqlEnumProvider">
-      <HintPath>..\..\packages\FSharp.Data.SqlEnumProvider.0.2.0.0-aplha\lib\net40\FSharp.Data.SqlEnumProvider.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\..\bin\FSharp.Data.SqlEnumProvider.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.SqlServer.ConnectionInfo">
       <HintPath>..\..\packages\FSharp.Data.SqlClient.1.2.22\lib\net40\Microsoft.SqlServer.ConnectionInfo.dll</HintPath>

@@ -9,7 +9,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>DbEnumProvider</RootNamespace>
     <AssemblyName>FSharp.Data.SqlEnumProvider</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <TargetFSharpCoreVersion>4.3.0.0</TargetFSharpCoreVersion>
     <Name>SqlEnumProvider</Name>
     <TargetFrameworkProfile />

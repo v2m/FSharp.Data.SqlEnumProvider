@@ -170,28 +170,19 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                     .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); providedEnumType.FullName |])
                     |> unbox
 
-            [
+            let parse = 
                 ProvidedMethod(
                     methodName = "Parse", 
                     parameters = [ 
                         ProvidedParameter("value", typeof<string>) 
-                        ProvidedParameter("ignoreCase", typeof<bool>) 
+                        ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
                     ], 
                     returnType = valueType, 
                     IsStaticMethod = true, 
                     InvokeCode = parseImpl
                 )
 
-                ProvidedMethod(
-                    methodName = "Parse", 
-                    parameters = [ ProvidedParameter("value", typeof<string>) ], 
-                    returnType = valueType, 
-                    IsStaticMethod = true, 
-                    InvokeCode = fun args -> parseImpl (args @ [ Expr.Value( false) ])
-                )
-
-            ]
-            |> List.iter providedEnumType.AddMember
+            providedEnumType.AddMember parse
 
         providedEnumType
 
