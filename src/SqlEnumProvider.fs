@@ -165,7 +165,11 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
         elif apiStyle = ApiStyle.``C#``
         then 
-            let impl = this.GetType().GetMethod("GetTryParseImplForCSharp").MakeGenericMethod( valueType)
+            let invokeCode = 
+                this.GetType()
+                    .GetMethod("GetTryParseImplForCSharp").MakeGenericMethod( valueType)
+                    .Invoke(null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |]) 
+                    |> unbox
             do 
                 let tryParseForCSharp = 
                     ProvidedMethod(
@@ -175,11 +179,9 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                             ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
                         ], 
                         returnType = typeof<bool>, 
-                        IsStaticMethod = true
+                        IsStaticMethod = true,
+                        InvokeCode = invokeCode
                     )
-
-                tryParseForCSharp.InvokeCode <- fun args ->
-                    Expr.Call(impl, [ Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); args.[0]; Expr.Value false; args.[1] ]) |> unbox
 
                 providedEnumType.AddMember tryParseForCSharp
 
@@ -193,11 +195,9 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                             ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
                         ], 
                         returnType = typeof<bool>, 
-                        IsStaticMethod = true
+                        IsStaticMethod = true,
+                        InvokeCode = invokeCode
                     )
-
-                tryParseForCSharp.InvokeCode <- fun args ->
-                    Expr.Call(impl, [ Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); args.[0]; args.[1]; args.[2] ]) |> unbox
 
                 providedEnumType.AddMember tryParseForCSharp
 
@@ -240,20 +240,18 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 |> Option.map (fun index -> Array.get<'Value> %%values index)
             @@>
 
-    static member public GetTryParseImplForCSharp<'Value>( names, values, value, ignoreCase, result: 'Value byref) = 
-        if String.IsNullOrEmpty value then nullArg "value"
-        let comparer = 
-            if ignoreCase
-            then StringComparer.InvariantCultureIgnoreCase
-            else StringComparer.InvariantCulture
+    static member OptionToRef<'T>(input, x: 'T byref) = match input with | Some value -> x <- value; true | None -> false
 
-        match names |> Array.tryFindIndex (fun (x: string) -> comparer.Equals(x, value)) with
-        | Some index -> 
-            result <- Array.get values index
-            true
-        | None -> 
-            false
-
+    static member public GetTryParseImplForCSharp<'Value>( names, values) = 
+        fun args -> 
+            let value, ignoreCase, result = 
+                match args with
+                | [ x; y; z ] -> x, y, z
+                | [ x; y ] -> x, Expr.Value false, y
+                | _ -> failwith "Unexpected"
+            let expr = (SqlEnumProvider.GetTryParseImpl<'Value> (names, values)) [ value; ignoreCase ]
+            let optionToRef = typeof<SqlEnumProvider>.GetMethod("OptionToRef").MakeGenericMethod(typeof<'Value>)
+            Expr.Call(optionToRef, [ expr; result])
 
     static member internal GetParseImpl<'Value>( names, values, typeName) = 
         fun (args: _ list) ->
