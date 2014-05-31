@@ -170,36 +170,31 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                     .GetMethod("GetTryParseImplForCSharp").MakeGenericMethod( valueType)
                     .Invoke(null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |]) 
                     |> unbox
-            do 
-                let tryParseForCSharp = 
-                    ProvidedMethod(
-                        methodName = "TryParse", 
-                        parameters = [ 
-                            ProvidedParameter("value", typeof<string>) 
-                            ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
-                        ], 
-                        returnType = typeof<bool>, 
-                        IsStaticMethod = true,
-                        InvokeCode = invokeCode
-                    )
+            [
+                ProvidedMethod(
+                    methodName = "TryParse", 
+                    parameters = [ 
+                        ProvidedParameter("value", typeof<string>) 
+                        ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
+                    ], 
+                    returnType = typeof<bool>, 
+                    IsStaticMethod = true,
+                    InvokeCode = invokeCode
+                )
 
-                providedEnumType.AddMember tryParseForCSharp
-
-            do  //ignoreCase param
-                let tryParseForCSharp = 
-                    ProvidedMethod(
-                        methodName = "TryParse", 
-                        parameters = [ 
-                            ProvidedParameter("value", typeof<string>) 
-                            ProvidedParameter("ignoreCase", typeof<bool>) 
-                            ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
-                        ], 
-                        returnType = typeof<bool>, 
-                        IsStaticMethod = true,
-                        InvokeCode = invokeCode
-                    )
-
-                providedEnumType.AddMember tryParseForCSharp
+                //ignoreCase param
+                ProvidedMethod(
+                    methodName = "TryParse", 
+                    parameters = [ 
+                        ProvidedParameter("value", typeof<string>) 
+                        ProvidedParameter("ignoreCase", typeof<bool>) 
+                        ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
+                    ], 
+                    returnType = typeof<bool>, 
+                    IsStaticMethod = true,
+                    InvokeCode = invokeCode
+                )
+            ] |> List.iter providedEnumType.AddMember
 
         do 
             let parseImpl =
