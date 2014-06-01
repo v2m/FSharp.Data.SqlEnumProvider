@@ -23,6 +23,8 @@ let parse() =
 
 type IntMapping = SqlEnumProvider<"SELECT * FROM (VALUES(('One'), 1), ('Two', 2)) AS T(Tag, Value)", connectionString, ApiStyle = ApiStyle.``C#``>
 
+//Failing to compile !!!
+
 //[<Fact>]
 //let ``TryParse C#``() = 
 //    let succ, result = IntMapping.TryParse("One")

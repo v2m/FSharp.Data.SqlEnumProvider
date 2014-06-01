@@ -6,11 +6,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		tests\Tests.fsx = tests\Tests.fsx
 	EndProjectSection
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlEnumProvider.Tests", "tests\SqlCommandProvider.Tests\SqlEnumProvider.Tests.fsproj", "{2AA8E587-0B71-466F-93A6-77247B1D1DFD}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlEnumProvider.Tests", "tests\SqlEnumProvider.Tests\SqlEnumProvider.Tests.fsproj", "{2AA8E587-0B71-466F-93A6-77247B1D1DFD}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlCommandProvider.GenTypes", "tests\SqlCommandProvider.GenTypes\SqlCommandProvider.GenTypes.fsproj", "{4193142A-17B7-4432-94B1-11CA65DD71C2}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlEnumProvider.GenTypes", "tests\SqlEnumProvider.GenTypes\SqlEnumProvider.GenTypes.fsproj", "{4193142A-17B7-4432-94B1-11CA65DD71C2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlCommandProvider.CSharp.Tests", "tests\SqlCommandProvider.CSharp.Tests\SqlCommandProvider.CSharp.Tests.csproj", "{599EFDC3-4B24-49BA-9C46-85EB87D82680}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlEnumProvider.CSharp.Tests", "tests\SqlEnumProvider.CSharp.Tests\SqlEnumProvider.CSharp.Tests.csproj", "{599EFDC3-4B24-49BA-9C46-85EB87D82680}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
