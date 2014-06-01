@@ -2,15 +2,15 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>FSharp.Data.SqlEnumProvider</id>
-    <version>0.2.0-aplha</version>
+    <version>0.3.0-aplha</version>
     <authors>Dmitry Morozov</authors>
     <owners>Dmitry Morozov</owners>
     <licenseUrl>http://github.com/dmitry-a-morozov/FSharp.Data.SqlEnumProvider/blob/master/LICENSE.md</licenseUrl>
     <projectUrl>http://github.com/dmitry-a-morozov/FSharp.Data.SqlEnumProvider/</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Database enumeration types</description>
-    <summary>Converts lookup data into enumeration types.</summary>
-    <releaseNotes>The first public release</releaseNotes>
+    <summary>Converts lookup data into enumeration type.</summary>
+    <releaseNotes>Support for C# style API.</releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>F# fsharp data typeprovider sql</tags>
     <frameworkAssemblies>

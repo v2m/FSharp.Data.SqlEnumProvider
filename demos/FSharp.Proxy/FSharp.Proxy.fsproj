@@ -59,7 +59,8 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="FSharp.Data.SqlEnumProvider">
-      <HintPath>..\..\bin\FSharp.Data.SqlEnumProvider.dll</HintPath>
+      <HintPath>..\..\packages\FSharp.Data.SqlEnumProvider.0.3.0-aplha\lib\net40\FSharp.Data.SqlEnumProvider.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.SqlServer.ConnectionInfo">
       <HintPath>..\..\packages\FSharp.Data.SqlClient.1.2.22\lib\net40\Microsoft.SqlServer.ConnectionInfo.dll</HintPath>
