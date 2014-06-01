@@ -10,7 +10,7 @@
     <RootNamespace>SqlCommandProvider.GenTypes</RootNamespace>
     <AssemblyName>SqlCommandProvider.GenTypes</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <Name>SqlCommandProvider.GenTypes</Name>
+    <Name>SqlEnumProvider.GenTypes</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

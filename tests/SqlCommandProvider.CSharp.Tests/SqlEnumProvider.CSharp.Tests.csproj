@@ -46,9 +46,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SqlCommandProvider.GenTypes\SqlCommandProvider.GenTypes.fsproj">
+    <ProjectReference Include="..\SqlCommandProvider.GenTypes\SqlEnumProvider.GenTypes.fsproj">
       <Project>{4193142a-17b7-4432-94b1-11ca65dd71c2}</Project>
-      <Name>SqlCommandProvider.GenTypes</Name>
+      <Name>SqlEnumProvider.GenTypes</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
