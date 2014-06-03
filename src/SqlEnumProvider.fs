@@ -75,8 +75,10 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         cmd.CommandType <- CommandType.Text
 
         use reader = cmd.ExecuteReader()
+        if not reader.HasRows then failwith "Resultset is empty. At least one row expected." 
         if reader.FieldCount < 2 then failwith "At least two columns expected in result rowset. Received %i columns." reader.FieldCount
         let schema = reader.GetSchemaTable()
+
         let valueType, getValue = 
             
             let getValueType(row: DataRow) = 
@@ -89,7 +91,8 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             if schema.Rows.Count = 2
             then
                 let valueType = getValueType schema.Rows.[1]
-                let getValue = fun(values: obj[]) -> Expr.Value(Array.get values 0, valueType)
+                let getValue (values : obj[]) = values.[0] 
+
                 valueType, getValue
             else
                 let tupleItemTypes = 
@@ -99,8 +102,8 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                     |> Seq.map getValueType
                 
                 let tupleType = tupleItemTypes |> Seq.toArray |> FSharpType.MakeTupleType
-                let getValue = fun values -> (values, tupleItemTypes) ||> Seq.zip |> Seq.map Expr.Value |> Seq.toList |> Expr.NewTuple
-                                
+                let getValue (values : obj[]) = FSharpValue.MakeTuple(values, tupleType)
+                
                 tupleType, getValue
 
         let names, values = 
@@ -110,14 +113,25 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                     let count = reader.GetValues( rowValues)
                     assert (count = rowValues.Length)
                     let label = string rowValues.[0]
-                    let tailAsValue = Array.sub rowValues 1 (count - 1) |> getValue
-                    yield label, tailAsValue
+                    let value = Array.sub rowValues 1 (count - 1) |> getValue
+                    yield label, value
             ] 
             |> List.unzip
 
         names 
         |> Seq.groupBy id 
         |> Seq.iter (fun (key, xs) -> if Seq.length xs > 1 then failwithf "Non-unique label %s." key)
+
+
+        let valueFields, setValues = 
+            (names, values) ||> List.map2 (fun name value -> 
+                let field = ProvidedField( name, valueType)
+                field.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+                field, Expr.FieldSet(field, Expr.Value(value, valueType))
+            ) 
+            |> List.unzip
+
+        valueFields |> List.iter providedEnumType.AddMember
 
         let namesStorage = ProvidedField( "Names", typeof<string[]>)
         namesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
@@ -127,19 +141,21 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         valuesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
         providedEnumType.AddMember valuesStorage 
 
+        let namesExpr = Expr.NewArray(typeof<string>, names |> List.map Expr.Value)
+        let valuesExpr = Expr.NewArray(valueType, [ for x in values -> Expr.Value(x, valueType) ])
+
         let typeInit = ProvidedConstructor([], IsTypeInitializer = true)
         typeInit.InvokeCode <- fun _ -> 
-            Expr.Sequential(
-                Expr.FieldSet(namesStorage, Expr.NewArray( typeof<string>, names |> List.map Expr.Value)),
-                Expr.FieldSet(valuesStorage, Expr.NewArray( valueType, values))
-            )
+            [
+                yield Expr.FieldSet(namesStorage, Expr.NewArray( typeof<string>, names |> List.map Expr.Value))
+                yield Expr.FieldSet(valuesStorage, Expr.NewArray( valueType, [ for x in values -> Expr.Value(x, valueType) ]))
+
+                yield! setValues
+            ]
+            |> List.reduce (fun x y -> Expr.Sequential(x, y))
 
         providedEnumType.AddMember typeInit 
 
-        (names, values) ||> List.iter2 (fun name value -> 
-            let property = ProvidedProperty( name, valueType, IsStatic = true, GetterCode = fun _ -> value)
-            providedEnumType.AddMember( property)
-        )
 
         if apiStyle = ApiStyle.Default
         then 
@@ -158,7 +174,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 this.GetType()
                     .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
                     .MakeGenericMethod( valueType)
-                    .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |])
+                    .Invoke( null, [| namesExpr; valuesExpr |])
                     |> unbox
 
             providedEnumType.AddMember tryParse
@@ -168,7 +184,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
             let invokeCode = 
                 this.GetType()
                     .GetMethod("GetTryParseImplForCSharp").MakeGenericMethod( valueType)
-                    .Invoke(null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage) |]) 
+                    .Invoke( null, [| namesExpr; valuesExpr |])
                     |> unbox
             [
                 ProvidedMethod(
@@ -201,7 +217,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                 this.GetType()
                     .GetMethod( "GetParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
                     .MakeGenericMethod( valueType)
-                    .Invoke( null, [| Expr.FieldGet( namesStorage); Expr.FieldGet( valuesStorage); providedEnumType.FullName |])
+                    .Invoke( null, [| namesExpr; valuesExpr; providedEnumType.FullName |])
                     |> unbox
 
             let parse = 

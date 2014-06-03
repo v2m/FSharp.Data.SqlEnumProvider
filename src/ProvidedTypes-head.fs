@@ -26,7 +26,10 @@ type internal ExpectedStackState =
 
 [<AutoOpen>]
 module internal Misc =
-    let TypeBuilderInstantiationType = typeof<TypeBuilder>.Assembly.GetType("System.Reflection.Emit.TypeBuilderInstantiation")
+    let TypeBuilderInstantiationType = 
+        let runningOnMono = try System.Type.GetType("Mono.Runtime") <> null with e -> false
+        let typeName = if runningOnMono then "System.Reflection.MonoGenericClass" else "System.Reflection.Emit.TypeBuilderInstantiation"
+        typeof<TypeBuilder>.Assembly.GetType(typeName)
     let GetTypeFromHandleMethod = typeof<Type>.GetMethod("GetTypeFromHandle")
     let LanguagePrimitivesType = typedefof<list<_>>.Assembly.GetType("Microsoft.FSharp.Core.LanguagePrimitives")
     let ParseInt32Method = LanguagePrimitivesType.GetMethod "ParseInt32"
@@ -299,7 +302,7 @@ module internal Misc =
             | TypeAttributes.NestedFamANDAssem when not isNested -> TypeAttributes.NotPublic
             | a -> a
         (attributes &&& ~~~TypeAttributes.VisibilityMask) ||| visibilityAttributes
-        
+
 type ProvidedStaticParameter(parameterName:string,parameterType:Type,?parameterDefaultValue:obj) = 
     inherit System.Reflection.ParameterInfo()
 
@@ -945,7 +948,7 @@ type ProvidedTypeDefinition(container:TypeContainer,className : string, baseType
         TypeAttributes.Sealed |||
         enum (int32 TypeProviderTypeAttributes.IsErased)
 
-
+    let mutable underlyingSystemType = typeof<int>
     let mutable baseType   =  lazy baseType
     let mutable membersKnown   = ResizeArray<MemberInfo>()
     let mutable membersQueue   = ResizeArray<(unit -> list<MemberInfo>)>()       
@@ -1045,12 +1048,14 @@ type ProvidedTypeDefinition(container:TypeContainer,className : string, baseType
     override this.GetCustomAttributesData()                 = customAttributesImpl.GetCustomAttributesData()
 #endif
 
+    override this.UnderlyingSystemType = if this.IsEnum then underlyingSystemType else typeof<Type>
     member this.ResetEnclosingType (ty) = 
         container <- TypeContainer.Type ty
     new (assembly:Assembly,namespaceName,className,baseType) = new ProvidedTypeDefinition(TypeContainer.Namespace (assembly,namespaceName), className, baseType)
     new (className,baseType) = new ProvidedTypeDefinition(TypeContainer.TypeToBeDecided, className, baseType)
     // state ops
 
+    member this.SetUnderlyingSystemType(ty) = underlyingSystemType <- ty
     member this.SetBaseType t = baseType <- lazy Some t
     member this.SetBaseTypeDelayed t = baseType <- t
     member this.SetAttributes x = attributes <- x
@@ -1267,7 +1272,6 @@ type ProvidedTypeDefinition(container:TypeContainer,className : string, baseType
     override this.IsPrimitiveImpl() = false
     override this.IsCOMObjectImpl() = false
     override this.HasElementTypeImpl() = false
-    override this.UnderlyingSystemType = typeof<System.Type>
     override this.Name = className
     override this.DeclaringType = declaringType.Force()
     override this.MemberType = if this.IsNested then MemberTypes.NestedType else MemberTypes.TypeInfo      
@@ -1402,7 +1406,7 @@ type AssemblyGenerator(assemblyFileName) =
 
         let ctorMap = Dictionary<ProvidedConstructor, ConstructorBuilder>(HashIdentity.Reference)
         let methMap = Dictionary<ProvidedMethod, MethodBuilder>(HashIdentity.Reference)
-        let fieldMap = Dictionary<ProvidedField, FieldBuilder>(HashIdentity.Reference)
+        let fieldMap = Dictionary<FieldInfo, FieldBuilder>(HashIdentity.Reference)
 
         let iterateTypes f = 
             let rec typeMembers (ptd : ProvidedTypeDefinition) = 
@@ -1463,23 +1467,40 @@ type AssemblyGenerator(assemblyFileName) =
                             cb
                     ctorMap.[pcinfo] <- cb
                 | _ -> () 
-                    
+            
+            if ptd.IsEnum then
+                tb.DefineField("value__", ptd.UnderlyingSystemType, FieldAttributes.Public ||| FieldAttributes.SpecialName ||| FieldAttributes.RTSpecialName)
+                |> ignore
+
             for finfo in ptd.GetFields(ALL) do
-                match finfo with 
-                | :? ProvidedField as pfinfo when not (fieldMap.ContainsKey pfinfo)  -> 
-                    let fb = tb.DefineField(finfo.Name, convType finfo.FieldType, finfo.Attributes)
-                    let cattr = pfinfo.GetCustomAttributesDataImpl() 
+                let fieldInfo = 
+                    match finfo with
+                    | :? ProvidedField as pinfo -> 
+                        Some (pinfo.Name, convType finfo.FieldType, finfo.Attributes, pinfo.GetCustomAttributesDataImpl(), None)
+                    | :? ProvidedLiteralField as pinfo ->
+                        Some (pinfo.Name, convType finfo.FieldType, finfo.Attributes, pinfo.GetCustomAttributesDataImpl(), Some (pinfo.GetRawConstantValue()))
+                    | _ -> None
+                match fieldInfo with
+                | Some (name, ty, attr, cattr, constantVal) when not (fieldMap.ContainsKey finfo) ->
+                    let fb = tb.DefineField(name, ty, attr)
+                    if constantVal.IsSome then
+                        fb.SetConstant constantVal.Value
                     defineCustomAttrs fb.SetCustomAttribute cattr
-                    fieldMap.[pfinfo] <- fb
-                | _ -> () 
+                    fieldMap.[finfo] <- fb
+                | _ -> ()
             for minfo in ptd.GetMethods(ALL) do
                 match minfo with 
                 | :? ProvidedMethod as pminfo when not (methMap.ContainsKey pminfo)  -> 
                     let mb = tb.DefineMethod(minfo.Name, minfo.Attributes, convType minfo.ReturnType, [| for p in minfo.GetParameters() -> convType p.ParameterType |])
-                    for (i,(:? ProvidedParameter as p)) in minfo.GetParameters() |> Seq.mapi (fun i x -> (i,x)) do
-                        let pb = mb.DefineParameter(i+1, ParameterAttributes.None, p.Name)
+                    for (i, p) in minfo.GetParameters() |> Seq.mapi (fun i x -> (i,x :?> ProvidedParameter)) do
+                        // TODO: check why F# compiler doesn't emit default value when just p.Attributes is used (thus bad metadata is emitted)
+                        let mutable attrs = ParameterAttributes.None
+                        
+                        if p.IsOut then attrs <- attrs ||| ParameterAttributes.Out
+                        if p.HasDefaultParameterValue then attrs <- attrs ||| ParameterAttributes.Optional
+
+                        let pb = mb.DefineParameter(i+1, attrs, p.Name)
                         if p.HasDefaultParameterValue then 
-                            pb.SetConstant p.RawDefaultValue
                             do
                                 let ctor = typeof<System.Runtime.InteropServices.DefaultParameterValueAttribute>.GetConstructor([|typeof<obj>|])
                                 let builder = new CustomAttributeBuilder(ctor, [|p.RawDefaultValue|])
@@ -1758,16 +1779,24 @@ type AssemblyGenerator(assemblyFileName) =
                         popIfEmptyExpected expectedState
 
                     | Quotations.Patterns.FieldGet (objOpt,field) -> 
-                        match objOpt with 
-                        | None -> () 
-                        | Some e -> 
-                          let s = if e.Type.IsValueType then ExpectedStackState.Address else ExpectedStackState.Value
-                          emit s e
-                        let field = match field with :? ProvidedField as pf when fieldMap.ContainsKey pf -> fieldMap.[pf] :> FieldInfo | m -> m
-                        if field.IsStatic then 
-                            ilg.Emit(OpCodes.Ldsfld, field)
-                        else
-                            ilg.Emit(OpCodes.Ldfld, field)
+                        match field with
+                        | :? ProvidedLiteralField as plf when plf.DeclaringType.IsEnum ->
+                            if expectedState <> ExpectedStackState.Empty then
+                                emit expectedState (Quotations.Expr.Value(field.GetRawConstantValue(), field.FieldType.UnderlyingSystemType))
+                        | _ ->
+                            match objOpt with 
+                            | None -> () 
+                            | Some e -> 
+                              let s = if e.Type.IsValueType then ExpectedStackState.Address else ExpectedStackState.Value
+                              emit s e
+                            let field = 
+                                match field with 
+                                | :? ProvidedField as pf when fieldMap.ContainsKey pf -> fieldMap.[pf] :> FieldInfo 
+                                | m -> m
+                            if field.IsStatic then 
+                                ilg.Emit(OpCodes.Ldsfld, field)
+                            else
+                                ilg.Emit(OpCodes.Ldfld, field)
 
                     | Quotations.Patterns.FieldSet (objOpt,field,v) -> 
                         match objOpt with 
