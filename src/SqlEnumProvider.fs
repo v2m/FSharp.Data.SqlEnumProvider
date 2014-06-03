@@ -122,120 +122,136 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         |> Seq.groupBy id 
         |> Seq.iter (fun (key, xs) -> if Seq.length xs > 1 then failwithf "Non-unique label %s." key)
 
-
-        let valueFields, setValues = 
-            (names, values) ||> List.map2 (fun name value -> 
-                let field = ProvidedField( name, valueType)
-                field.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
-                field, Expr.FieldSet(field, Expr.Value(value, valueType))
-            ) 
-            |> List.unzip
-
-        valueFields |> List.iter providedEnumType.AddMember
-
-        let namesStorage = ProvidedField( "Names", typeof<string[]>)
-        namesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
-        providedEnumType.AddMember namesStorage
-
-        let valuesStorage = ProvidedField( "Values", valueType.MakeArrayType())
-        valuesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
-        providedEnumType.AddMember valuesStorage 
-
-        let namesExpr = Expr.NewArray(typeof<string>, names |> List.map Expr.Value)
-        let valuesExpr = Expr.NewArray(valueType, [ for x in values -> Expr.Value(x, valueType) ])
-
-        let typeInit = ProvidedConstructor([], IsTypeInitializer = true)
-        typeInit.InvokeCode <- fun _ -> 
-            [
-                yield Expr.FieldSet(namesStorage, Expr.NewArray( typeof<string>, names |> List.map Expr.Value))
-                yield Expr.FieldSet(valuesStorage, Expr.NewArray( valueType, [ for x in values -> Expr.Value(x, valueType) ]))
-
-                yield! setValues
-            ]
-            |> List.reduce (fun x y -> Expr.Sequential(x, y))
-
-        providedEnumType.AddMember typeInit 
-
-
-        if apiStyle = ApiStyle.Default
+        if apiStyle = ApiStyle.Enum
         then 
-            let tryParse = 
-                ProvidedMethod(
-                    methodName = "TryParse", 
-                    parameters = [ 
-                        ProvidedParameter("value", typeof<string>) 
-                        ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
-                    ], 
-                    returnType = typedefof<_ option>.MakeGenericType( valueType), 
-                    IsStaticMethod = true
+            let allowedTypesForEnum = 
+                [| typeof<sbyte>; typeof<byte>; typeof<int16>; typeof<uint16>; typeof<int32>; typeof<uint32>; typeof<int64>; typeof<uint16>; typeof<uint64>; typeof<char> |]
+            
+            if not(allowedTypesForEnum |> Array.exists valueType.Equals)
+            then failwithf "Enumerated types can only have one of the following underlying types: %A." [| for t in allowedTypesForEnum -> t.Name |]
+
+            providedEnumType.SetBaseType typeof<Enum>
+
+            (names, values)
+            ||> List.map2 (fun name value -> ProvidedLiteralField(name, valueType, value))
+            |> providedEnumType.AddMembers
+
+        else
+            let valueFields, setValues = 
+                (names, values) ||> List.map2 (fun name value -> 
+                    let field = ProvidedField( name, valueType)
+                    field.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+                    field, Expr.FieldSet(field, Expr.Value(value, valueType))
+                ) 
+                |> List.unzip
+
+            valueFields |> List.iter providedEnumType.AddMember
+
+            let namesStorage = ProvidedField( "Names", typeof<string[]>)
+            namesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+            providedEnumType.AddMember namesStorage
+
+            let valuesStorage = ProvidedField( "Values", valueType.MakeArrayType())
+            valuesStorage.SetFieldAttributes( FieldAttributes.Public ||| FieldAttributes.InitOnly ||| FieldAttributes.Static)
+            providedEnumType.AddMember valuesStorage 
+
+            let namesExpr = Expr.NewArray(typeof<string>, names |> List.map Expr.Value)
+            let valuesExpr = Expr.NewArray(valueType, [ for x in values -> Expr.Value(x, valueType) ])
+
+            let typeInit = ProvidedConstructor([], IsTypeInitializer = true)
+            typeInit.InvokeCode <- fun _ -> 
+                Expr.Sequential(
+                    Expr.Sequential(
+                        Expr.FieldSet(namesStorage, Expr.NewArray( typeof<string>, names |> List.map Expr.Value)),
+                        Expr.FieldSet(valuesStorage, Expr.NewArray( valueType, [ for x in values -> Expr.Value(x, valueType) ]))
+                    ),
+                    setValues |> List.reduce (fun x y -> Expr.Sequential(x, y))
                 )
 
-            tryParse.InvokeCode <- 
-                this.GetType()
-                    .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
-                    .MakeGenericMethod( valueType)
-                    .Invoke( null, [| namesExpr; valuesExpr |])
-                    |> unbox
+            providedEnumType.AddMember typeInit 
 
-            providedEnumType.AddMember tryParse
+            if apiStyle = ApiStyle.Default
+            then 
+                let tryParse = 
+                    ProvidedMethod(
+                        methodName = "TryParse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                            ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
+                        ], 
+                        returnType = typedefof<_ option>.MakeGenericType( valueType), 
+                        IsStaticMethod = true
+                    )
 
-        elif apiStyle = ApiStyle.``C#``
-        then 
-            let invokeCode = 
-                this.GetType()
-                    .GetMethod("GetTryParseImplForCSharp").MakeGenericMethod( valueType)
-                    .Invoke( null, [| namesExpr; valuesExpr |])
-                    |> unbox
-            [
-                ProvidedMethod(
-                    methodName = "TryParse", 
-                    parameters = [ 
-                        ProvidedParameter("value", typeof<string>) 
-                        ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
-                    ], 
-                    returnType = typeof<bool>, 
-                    IsStaticMethod = true,
-                    InvokeCode = invokeCode
-                )
+                tryParse.InvokeCode <- 
+                    this.GetType()
+                        .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
+                        .MakeGenericMethod( valueType)
+                        .Invoke( null, [| namesExpr; valuesExpr |])
+                        |> unbox
 
-                //ignoreCase param
-                ProvidedMethod(
-                    methodName = "TryParse", 
-                    parameters = [ 
-                        ProvidedParameter("value", typeof<string>) 
-                        ProvidedParameter("ignoreCase", typeof<bool>) 
-                        ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
-                    ], 
-                    returnType = typeof<bool>, 
-                    IsStaticMethod = true,
-                    InvokeCode = invokeCode
-                )
-            ] |> List.iter providedEnumType.AddMember
+                providedEnumType.AddMember tryParse
 
-        do 
-            let parseImpl =
-                this.GetType()
-                    .GetMethod( "GetParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
-                    .MakeGenericMethod( valueType)
-                    .Invoke( null, [| namesExpr; valuesExpr; providedEnumType.FullName |])
-                    |> unbox
+            elif apiStyle = ApiStyle.``C#``
+            then 
+                let invokeCode = 
+                    this.GetType()
+                        .GetMethod("GetTryParseImplForCSharp", BindingFlags.NonPublic ||| BindingFlags.Static)
+                        .MakeGenericMethod( valueType)
+                        .Invoke( null, [| namesExpr; valuesExpr |])
+                        |> unbox
+                [
+                    ProvidedMethod(
+                        methodName = "TryParse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                            ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
+                        ], 
+                        returnType = typeof<bool>, 
+                        IsStaticMethod = true,
+                        InvokeCode = invokeCode
+                    )
 
-            let parse = 
-                ProvidedMethod(
-                    methodName = "Parse", 
-                    parameters = [ 
-                        ProvidedParameter("value", typeof<string>) 
-                        ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
-                    ], 
-                    returnType = valueType, 
-                    IsStaticMethod = true, 
-                    InvokeCode = parseImpl
-                )
+                    //ignoreCase param
+                    ProvidedMethod(
+                        methodName = "TryParse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                            ProvidedParameter("ignoreCase", typeof<bool>) 
+                            ProvidedParameter("result", valueType.MakeByRefType(), isOut = true) 
+                        ], 
+                        returnType = typeof<bool>, 
+                        IsStaticMethod = true,
+                        InvokeCode = invokeCode
+                    )
+                ] |> providedEnumType.AddMembers
 
-            providedEnumType.AddMember parse
+            do 
+                let parseImpl =
+                    this.GetType()
+                        .GetMethod( "GetParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
+                        .MakeGenericMethod( valueType)
+                        .Invoke( null, [| namesExpr; valuesExpr; providedEnumType.FullName |])
+                        |> unbox
+
+                let parse = 
+                    ProvidedMethod(
+                        methodName = "Parse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                            ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
+                        ], 
+                        returnType = valueType, 
+                        IsStaticMethod = true, 
+                        InvokeCode = parseImpl
+                    )
+
+                providedEnumType.AddMember parse
 
         providedEnumType
 
+    //Quotation factories
+    
     static member internal GetTryParseImpl<'Value>( names, values) = 
         fun (args: _ list) ->
             <@@
@@ -253,7 +269,7 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
     static member OptionToRef<'T>(input, x: 'T byref) = match input with | Some value -> x <- value; true | None -> false
 
-    static member public GetTryParseImplForCSharp<'Value>( names, values) = 
+    static member internal GetTryParseImplForCSharp<'Value>( names, values) = 
         fun args -> 
             let value, ignoreCase, result = 
                 match args with
