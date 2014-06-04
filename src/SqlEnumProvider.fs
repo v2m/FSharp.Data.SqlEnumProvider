@@ -25,14 +25,13 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
     inherit TypeProviderForNamespaces()
 
     let nameSpace = this.GetType().Namespace
-    let assembly = Assembly.GetExecutingAssembly()
-    let providerType = ProvidedTypeDefinition( assembly, nameSpace, "SqlEnumProvider", Some typeof<obj>, HideObjectMethods = true, IsErased = false)
-    
+    let assembly = Assembly.GetExecutingAssembly() 
+    let providerType = ProvidedTypeDefinition(assembly, nameSpace, "SqlEnumProvider", Some typeof<obj>, HideObjectMethods = true, IsErased = false)
     let tempAssembly = ProvidedAssembly( Path.ChangeExtension(Path.GetTempFileName(), ".dll"))
+    do tempAssembly.AddTypes [providerType]
     let cache = ConcurrentDictionary<_, ProvidedTypeDefinition>()
 
     do 
-        tempAssembly.AddTypes  <| [ providerType ]
         providerType.DefineStaticParameters(
             parameters = [ 
                 ProvidedStaticParameter("Query", typeof<string>) 
@@ -57,9 +56,12 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
         this.AddNamespace( nameSpace, [ providerType ])
     
     member internal this.CreateRootType( typeName, query: string, connectionStringOrName: string, adoProviderName: string, configFile, apiStyle) = 
+        let tempAssembly = ProvidedAssembly( Path.ChangeExtension(Path.GetTempFileName(), ".dll"))
 
         let providedEnumType = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, HideObjectMethods = true, IsErased = false)
-        tempAssembly.AddTypes <| [ providedEnumType ]
+        tempAssembly.AddTypes [providedEnumType]
+        //providerType.AddMember providedEnumType
+//        tempAssembly.AddTypes <| [ providedEnumType ]
         
         let adoObjectsFactory = DbProviderFactories.GetFactory( adoProviderName)
 
@@ -172,25 +174,40 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
 
             if apiStyle = ApiStyle.Default
             then 
-                let tryParse = 
+                let tryParse2Arg = 
                     ProvidedMethod(
                         methodName = "TryParse", 
                         parameters = [ 
                             ProvidedParameter("value", typeof<string>) 
-                            ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
+                            ProvidedParameter("ignoreCase", typeof<bool>) // optional=false 
                         ], 
                         returnType = typedefof<_ option>.MakeGenericType( valueType), 
                         IsStaticMethod = true
                     )
 
-                tryParse.InvokeCode <- 
+                tryParse2Arg.InvokeCode <- 
                     this.GetType()
                         .GetMethod( "GetTryParseImpl", BindingFlags.NonPublic ||| BindingFlags.Static)
                         .MakeGenericMethod( valueType)
                         .Invoke( null, [| namesExpr; valuesExpr |])
                         |> unbox
 
-                providedEnumType.AddMember tryParse
+                providedEnumType.AddMember tryParse2Arg
+
+                let tryParse1Arg = 
+                    ProvidedMethod(
+                        methodName = "TryParse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                        ], 
+                        returnType = typedefof<_ option>.MakeGenericType( valueType), 
+                        IsStaticMethod = true
+                    )
+
+                tryParse1Arg.InvokeCode <- fun [arg] -> Expr.Call(tryParse2Arg, [arg; Expr.Value false])
+
+                providedEnumType.AddMember tryParse1Arg
+
 
             elif apiStyle = ApiStyle.``C#``
             then 
@@ -234,19 +251,32 @@ type public SqlEnumProvider(config : TypeProviderConfig) as this =
                         .Invoke( null, [| namesExpr; valuesExpr; providedEnumType.FullName |])
                         |> unbox
 
-                let parse = 
+                let parse2Arg = 
                     ProvidedMethod(
                         methodName = "Parse", 
                         parameters = [ 
                             ProvidedParameter("value", typeof<string>) 
-                            ProvidedParameter("ignoreCase", typeof<bool>, optionalValue = false) 
+                            ProvidedParameter("ignoreCase", typeof<bool>) 
                         ], 
                         returnType = valueType, 
                         IsStaticMethod = true, 
                         InvokeCode = parseImpl
                     )
 
-                providedEnumType.AddMember parse
+                providedEnumType.AddMember parse2Arg
+
+                let parse1Arg = 
+                    ProvidedMethod(
+                        methodName = "Parse", 
+                        parameters = [ 
+                            ProvidedParameter("value", typeof<string>) 
+                        ], 
+                        returnType = valueType, 
+                        IsStaticMethod = true, 
+                        InvokeCode = fun [arg] -> Expr.Call(parse2Arg, [arg; Expr.Value false])
+                    )
+
+                providedEnumType.AddMember parse1Arg
 
         providedEnumType
 
